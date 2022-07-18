@@ -40,7 +40,7 @@ BTW, you can specify some parameters like:
 ```
 ode1.solve(epoch=20000, lr=0.002, trivial_resist=True)
 ```
-Specify `trivial_resist=True` if you don't want to see trivial solutions such as "y = 0". However, this is not recommended for most cases.
+Specify `trivial_resist=True` if you don't want to see trivial solutions such as `y = 0`. However, this is not recommended for most cases.
 
 An example for solving PDEs:
 ```
@@ -49,3 +49,5 @@ pde1 = Equation('y * z(x) + x * z(y)',
 pde1.solve()
 ```
 ![图片](https://user-images.githubusercontent.com/100750226/179619033-470dc1a0-efb6-4aba-891e-9f1a711f16e2.png)
+
+More examples are available in the end of file `equation.py`. Good luck!
