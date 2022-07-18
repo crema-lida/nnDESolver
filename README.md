@@ -23,8 +23,8 @@ ode_system = Equation(('x(t) - y()',
 ```
 - **Add boundary conditions**
 ```
-ode1.boundary_condition((1, sin(1) + cos(1), 0),
-                        (1, 0.5 * cos(1) - 1.5 * sin(1), 1))
+ode1.boundary_condition((1, np.sin(1) + np.cos(1), 0),
+                        (1, 0.5 * np.cos(1) - 1.5 * np.sin(1), 1))
 ```
 Pass a sequence of tuples or lists consist of (position of boundary, value, order).
 
