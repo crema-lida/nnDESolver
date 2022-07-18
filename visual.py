@@ -73,17 +73,17 @@ class Graph:
 class Graph2D(Graph):
     """
     Args:
-        x: The X axis for trained data or targets, must be 2-d array(s).
-        targets (optional): Y-value of targets, must be 2-d array(s).
+        x: The x-axis, a tensor or numpy array.
+        targets (optional): Y-value of targets, tensors or numpy arrays.
 
     Examples:
-        update_graph = visual.Graph2D(epoch, x, target1, target2, ...)
+        update_graph = visual.Graph2D(x, target1, target2, ...)
 
         To plot new data, simply call
 
-        update_graph(cycle, y, loss)
+        update_graph(epoch, y, loss)
 
-        `cycle`:
+        `epoch`:
             The current loop number.
         `y`:
             Array or sequence of arrays. Tensors and numpy arrays are both acceptable.

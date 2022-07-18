@@ -187,11 +187,11 @@ if __name__ == '__main__':
                                    'cos(t) - sin(t)'))
     ode_system.boundary_condition((0, 1, 'x()'),
                                   (2, cos(2) - sin(2), 'y()'))
-    ode_system.solve(epoch=10000)
+    # ode_system.solve(epoch=10000)
 
     pde1 = Equation('y * z(x) + x * z(y)',
                     {'x': (-2, 2), 'y': (-2, 2)},)
-    # pde1.solve()
+    pde1.solve()
 
     pde2 = Equation('S(tt) - (S(ti)**2 -1) / (S(ii) + S())',
                     {'t': (-5, 5), 'i': (-5, 5)})
