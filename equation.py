@@ -41,7 +41,6 @@ class Equation:
             bc:  A tuple or list defined as (x, value, order).
 
                 `x` is the boundary position, can be either `float` or a `tuple` of floats.
-                If is `tuple`, it shall match the sequence of variable names in `domain`.
 
                 `value` is a floating-point number.
 
@@ -125,7 +124,7 @@ class Equation:
             self.vector = torch.ones(inputs.size(0), 1, device=device)
             self.net = Network(inputs.size(1)).to(device)
             self.optimizer = torch.optim.Adam(self.net.parameters(), lr=lr)
-            self.scheduler = ReduceLROnDeviation(self.optimizer)
+            self.scheduler = ReduceLROnDeviation(self.optimizer, delay=1000)
             self.bc_loss = None
 
         def __call__(self, order: str = '') -> torch.Tensor:
@@ -169,21 +168,21 @@ if __name__ == '__main__':
     """
 
     ode1 = Equation('x**2 * u(2) + x * u(1) + (x**2 - 0.25) * u()',
-                    (0.01, 1), 0.01,
+                    domain=(0.01, 1), step=0.01,
                     targets='(sin(x) + cos(x)) / sqrt(x)')
     ode1.boundary_condition((1, sin(1) + cos(1), 0),
                             (1, 0.5 * cos(1) - 1.5 * sin(1), 1))
     # ode1.solve()
 
     ode2 = Equation('u() * exp(x * u()) + cos(x) + x * exp(x * u()) * u(1)',
-                    (0.5, 8),
+                    domain=(0.4, 8),
                     targets='log(2 - sin(x)) / x')
     ode2.boundary_condition((pi / 2, 0, 0))
     # ode2.solve()
 
     ode_system = Equation(('x(t) - y()',
                            'y(t) + x()'),
-                          {'t': (-2, 2)}, 0.01,
+                          domain={'t': (-5, 5)},
                           targets=('cos(t) + sin(t)',
                                    'cos(t) - sin(t)'))
     ode_system.boundary_condition((0, 1, 'x()'),
