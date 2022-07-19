@@ -23,7 +23,7 @@ class Equation:
                 of the equation. They will be displayed on the graph if specified.
         """
 
-        self.device = torch.device('cuda:0')
+        self.device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
         self.domain = {'x': domain} if type(domain) == tuple else domain
         self.step = step
         self.inputs, self.var_names, self.inputs_shape = generate_inputs(self.domain, step)
