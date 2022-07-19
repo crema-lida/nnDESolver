@@ -120,7 +120,7 @@ class Graph2D(Graph):
         plt.show(block=False)
         self.refresh_background()
 
-    def __call__(self, epoch, output, benchmark: dict):
+    def __call__(self, epoch, output, benchmark):
         # update data
         output = output if isinstance(output, (tuple, list)) else (output, )
         if self.outputs:

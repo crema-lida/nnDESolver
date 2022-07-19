@@ -11,7 +11,7 @@ from visual import graph
 
 
 class Equation:
-    def __init__(self, eq, domain: tuple | dict, step: float = 0.1, targets=None):
+    def __init__(self, eq, domain, step=0.1, targets=None):
         """
         Args:
             eq: The left side of equation `F(x, u, u(1), ..., u(n)) = 0`, can either be `str`
@@ -34,7 +34,7 @@ class Equation:
         self.zeros = torch.zeros_like(self.inputs[:, :1], device=self.device)
         translate(self.functions, self.var_names, self.eq, self.targets)
 
-    def boundary_condition(self, *bc: tuple | list):
+    def boundary_condition(self, *bc):
         """
         Set or add to boundary conditions by passing a sequence of tuples or lists.
         Args:
@@ -127,7 +127,7 @@ class Equation:
             self.scheduler = ReduceLROnDeviation(self.optimizer, delay=1000)
             self.bc_loss = None
 
-        def __call__(self, order: str = '') -> torch.Tensor:
+        def __call__(self, order='') -> torch.Tensor:
             if order.isdigit():
                 order = 'x' * int(order)
             if order in self.derivatives:
@@ -189,7 +189,7 @@ if __name__ == '__main__':
                                   (2, cos(2) - sin(2), 'y()'))
     # ode_system.solve(epoch=10000)
 
-    pde1 = Equation('y * z(x) + x * z(y)',
+    pde1 = Equation('z() * z(y) + x * z(x) + z(xxx)',
                     {'x': (-2, 2), 'y': (-2, 2)},)
     pde1.solve()
 

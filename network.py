@@ -39,7 +39,7 @@ class ReduceLROnDeviation:
         self.history = torch.tensor([], device=self.device)
         self.msd = torch.tensor(0.)
 
-    def step(self, loss: torch.Tensor):
+    def step(self, loss):
         if self.is_skipped(loss): return
 
         if len(self.history) < self.interval:
