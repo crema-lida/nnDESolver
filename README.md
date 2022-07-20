@@ -9,7 +9,7 @@ ode1 = Equation('x**2 * u(2) + x * u(1) + (x**2 - 0.25) * u()',
                 domain=(0.01, 1), step=0.01,
                 targets='(sin(x) + cos(x)) / sqrt(x)')
 ```
-In the first parameter, "u()" represents the function of variable x, and "u(1)" or "u(x)" represents the first-order derivative of "u()", etc.
+In the first parameter, "u()" represents the function of variable x. "u(1)" or "u(x)" represents the first-order derivative of "u()", and "u(2)" or "u(xx)" represents the second-order derivative of "u()", etc.
 
 The parameter `targets` is optional. If you have a known solution, just specify it and see how close is output to target.
 
