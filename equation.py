@@ -14,12 +14,12 @@ class Equation:
     def __init__(self, eq, domain, step=0.1, targets=None):
         """
         Args:
-            eq: The left side of equation `F(x, u, u(1), ..., u(n)) = 0`, can either be `str`
-                for a single equation or a sequence of strings for a system of equations.
-            domain: The starting and ending values of independent variables. Specify a `dict`
-                as {name: (start, end), ...} for multivariable functions.
-            step (optional): The gap between values within domain.
-            targets (optional): A string or sequence of strings representing known solution(s)
+            eq (str or tuple[str]): The left side of equation `F(x, u, u(1), ..., u(n)) = 0`, can either be
+                `str` for a single equation or a sequence of strings for a system of equations.
+            domain (tuple or dict[str, tuple]): The starting and ending values of independent variables.
+                Specify a `dict` as {name: (start, end), ...} for multivariable functions.
+            step (float or int): Optional. The gap between values within domain.
+            targets (str or tuple[str]): Optional. A string or sequence of strings representing known solution(s)
                 of the equation. They will be displayed on the graph if specified.
         """
 
@@ -38,12 +38,9 @@ class Equation:
         """
         Set or add to boundary conditions by passing a sequence of tuples or lists.
         Args:
-            bc:  A tuple or list defined as (x, value, order).
-
-                `x` is the boundary position, can be either `float` or a `tuple` of floats.
-
+            bc: A tuple or list defined as (x, value, order).
+                `x` is the boundary position, can be either float or a tuple of floats.
                 `value` is a floating-point number.
-
                 `order` can be either a non-negative integer for ODEs or a string for PDEs,
                 e.g. 'xx' or 'xyz'. If `order` is 0 or "", it denotes the function itself.
                 For systems of differential equations, function names must be specified,
@@ -58,7 +55,7 @@ class Equation:
             else:
                 funcname = list(self.functions.keys())[0]
                 order = funcname + f'("{order}")'
-            index = [0 for i in self.domain.keys()]
+            index = [0] * len(self.var_names)
             position = item[0] if type(item[0]) == tuple else (item[0],)
             for i, limits in enumerate(self.domain.values()):
                 index[i] = round((position[i] - limits[0]) / self.step)
@@ -69,8 +66,9 @@ class Equation:
     def solve(self, epoch=30000, lr=0.001, trivial_resist=False):
         globs = {'self': self, 'torch': torch, 'np': np}
         for funcname in self.functions.keys():
-            exec(f'{funcname} = self.Function(self.inputs, self.var_names, lr, self.device)')
-            globs[funcname] = self.functions[funcname] = eval(funcname)
+            self.functions[funcname] = self.Function(self.inputs, self.var_names, lr, self.device)
+            globs[funcname] = self.functions[funcname]
+            exec(f'{funcname} = self.functions[funcname]')
         targets = [eval(target, globs).detach() for target in self.targets]
         update_graph = graph(self.inputs.detach(), *targets, shape=self.inputs_shape)
         self.inputs = self.inputs.to(self.device).requires_grad_()
@@ -187,11 +185,11 @@ if __name__ == '__main__':
                                    'cos(t) - sin(t)'))
     ode_system.boundary_condition((0, 1, 'x()'),
                                   (2, cos(2) - sin(2), 'y()'))
-    # ode_system.solve(epoch=10000)
+    ode_system.solve(epoch=10000)
 
     pde1 = Equation('z() * z(y) + x * z(x) + z(xxx)',
                     {'x': (-2, 2), 'y': (-2, 2)},)
-    pde1.solve()
+    # pde1.solve()
 
     pde2 = Equation('S(tt) - (S(ti)**2 -1) / (S(ii) + S())',
                     {'t': (-5, 5), 'i': (-5, 5)})

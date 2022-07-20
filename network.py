@@ -7,7 +7,7 @@ class Network(nn.Module):
     def __init__(self, dimension):
         super().__init__()
         self.layers = nn.ModuleList([nn.Linear(dimension, 60)] +
-                                    [nn.Linear(60, 60) for i in range(3)] +
+                                    [nn.Linear(60, 60)] * 3 +
                                     [nn.Linear(60, 1)])
 
     def forward(self, x):
