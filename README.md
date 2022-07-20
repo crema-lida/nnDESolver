@@ -1,7 +1,7 @@
 # nnDESolver
 Solve ordinary and partial differential equations with neural networks, based on PyTorch.
 ## Steps to Follow
-- **Write down your equation.**
+**1. Write down your equation.**
 ```
 from equation import Equation
 
@@ -21,7 +21,8 @@ ode_system = Equation(('x(t) - y()',
                       targets=('cos(t) + sin(t)',
                                'cos(t) - sin(t)'))
 ```
-- **Add boundary conditions**
+
+**2. Add boundary conditions**
 ```
 ode1.boundary_condition((1, np.sin(1) + np.cos(1), 0),
                         (1, 0.5 * np.cos(1) - 1.5 * np.sin(1), 1))
@@ -29,11 +30,13 @@ ode1.boundary_condition((1, np.sin(1) + np.cos(1), 0),
 Pass a sequence of tuples or lists consist of (position of boundary, value, order).
 
 For PDEs, position of boundary is a tuple of numbers.
-- **Solve it!**
+
+**3. Solve it!**
 ```
 ode1.solve()
 ```
 Run your code and see how things evolve.
+
 ![图片](https://user-images.githubusercontent.com/100750226/179616883-f9885d66-e6dd-4af1-9f20-45751d3c30a5.png)
 
 BTW, you can specify some parameters like:
