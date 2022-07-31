@@ -3,8 +3,7 @@ import re
 
 
 def generate_inputs(domain, step):
-    if type(domain) != dict:
-        raise Exception(f'Expected domain type: `tuple` or `dict`. However, type `{type(domain)}` is given.')
+    assert (T := type(domain)) is dict, f'Expected domain type: `tuple` or `dict`. However, type `{T}` is given.'
     var_names = list(domain.keys())
     var_list = []
     shape = []
@@ -12,9 +11,9 @@ def generate_inputs(domain, step):
         values = torch.arange(limits[0], limits[1] + step, step)
         var_list.append(values)
         shape.append(values.size(0))
-    inputs = torch.empty(*shape, len(shape))
     dimension = range(len(shape))
-    index = [0 for i in shape]
+    inputs = torch.empty(*shape, len(dimension))
+    index = [0] * len(dimension)
     max_index = [i - 1 for i in shape[:-1]] + shape[-1:]
     while index < max_index:
         for i in dimension:
@@ -24,7 +23,7 @@ def generate_inputs(domain, step):
             if index[i] == shape[i]:
                 index[i] = 0
                 index[i - 1] += 1
-    return inputs.view(-1, len(shape)).to(dtype=torch.float), var_names, tuple(shape)
+    return inputs.view(-1, len(dimension)).to(dtype=torch.float), var_names, tuple(shape)
 
 
 def translate(functions, var_names, *expressions):
@@ -38,7 +37,7 @@ def translate(functions, var_names, *expressions):
             return '{}("{}")'.format(f, match.group('order'))
         if (m := match.group('var')) in var_names:
             index = var_names.index(m)
-            return 'self.inputs[:, {}:{}]'.format(index, index + 1)
+            return 'Func.inputs[:, {}:{}]'.format(index, index + 1)
         if m in mathfunc + mathconst:
             return f'torch.{m}'
         return match.group()
