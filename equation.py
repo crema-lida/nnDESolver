@@ -2,12 +2,14 @@ import torch
 import torch.nn.functional as f
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
-from time import time
+import math
+from time import time, sleep
 import re
 from itertools import permutations
+from threading import Thread
 
 from network import Network, ReduceLROnDeviation
-from utils import generate_inputs, translate
+from utils import generate_inputs, translate, downsample
 from visual import Graph
 
 
@@ -27,7 +29,8 @@ class Equation:
         self.device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
         self.domain = {'x': domain} if type(domain) == tuple else domain
         self.step = step
-        self.inputs, self.var_names, self.inputs_shape = generate_inputs(self.domain, step)
+        self.inputs, self.var_names, coords = generate_inputs(self.domain, step)
+        self.indices, self.ds_coords = downsample(self.inputs, coords)  # data will be down-sampled to plot graph
         self.eq = [eq] if type(eq) == str else list(eq)
         self.targets = [targets] if type(targets) == str else list(targets) if targets else []
         self.functions = {}
@@ -63,19 +66,18 @@ class Equation:
             self.bc.append(cond)
 
     def solve(self, epoch: int = 10000, lr: float = 0.001, trivial_resist: bool = False):
-        globs = {'torch': torch, 'np': np, 'Func': self.Function}
+        globs = {'torch': torch, 'np': np, 'math': math, 'Func': self.Function}
         for funcname in self.functions.keys():
             self.functions[funcname] = self.Function(funcname, self.var_names, self.device)
             exec(f'{funcname} = self.functions[funcname]')
             globs[funcname] = eval(funcname)
-        self.Function.inputs = self.inputs
-        targets = [eval(target, globs).numpy() for target in self.targets]
-        update_graph = Graph(self.inputs.numpy(), *targets, shape=self.inputs_shape)
+        self.Function.inputs = torch.from_numpy(self.inputs)
+        targets = [eval(target, globs).numpy()[self.indices != -1] for target in self.targets]
+        update_graph = Graph(self.ds_coords, *targets)
 
-        index = torch.arange(self.inputs.size(0), dtype=torch.int32)
-        dataset = TensorDataset(index, self.inputs)
-        sample_size = index.size(0)
-        batch_size = min(max(128, pow(2, int(np.log2(index.size(0) / 10)))), 131072)
+        sample_size = self.inputs.shape[0]
+        dataset = TensorDataset(torch.from_numpy(self.indices), self.Function.inputs)
+        batch_size = min(max(128, pow(2, int(np.log2(sample_size / 10)))), 131072)
         batch = DataLoader(
             dataset=dataset,
             batch_size=batch_size,
@@ -88,12 +90,27 @@ class Equation:
         benchmark = {}
         boundary_loss = torch.tensor(0., device=self.device)
 
+        def refresh_status(stat):
+            start = time()
+            max_step = math.ceil(sample_size / batch_size)
+            while training:
+                sleep(0.1)
+                print(f'epoch {stat["epoch"]}/{epoch} | step {stat["step"]}/{max_step} | '
+                      f'elapsed: {time() - start: .2f} s | loss: {sum(benchmark.values()): .6e}\r', end='')
+
         print(f'computing device: {self.device}\n'
               f'sample size: {sample_size} | batch size: {batch_size}')
-        start = time()
+        stat = {'epoch': 0, 'step': 0,
+                'outputs': {name: np.full((self.indices[self.indices != -1].size, 1), np.nan)
+                            for name in self.functions.keys()}}
+        updater = Thread(target=refresh_status, args=(stat,), daemon=True)
+        training = True
+        updater.start()
 
         # optimize boundary loss every epoch and equation loss every batch
-        for cycle in range(epoch + 1):
+        for cycle in range(1, epoch + 1):
+            stat['epoch'] = cycle
+
             for bc in self.bc:
                 self.Function.inputs = bc.position
                 boundary_loss += f.mse_loss(eval(bc.order, globs), bc.target)
@@ -104,13 +121,14 @@ class Equation:
                 benchmark['Boundary Loss'] = boundary_loss.item()
                 boundary_loss.zero_()
 
-            for _, (index, inputs) in enumerate(batch):
+            for step, (indices, inputs) in enumerate(batch, 1):
+                stat['step'] = step
                 self.Function.inputs = inputs.to(self.device).requires_grad_()
                 zeros = self.zeros.expand(inputs.size(0), -1)
 
                 if trivial_resist:
                     trivial_loss = list(map(lambda func: f.mse_loss(func(), zeros).clamp(1e-3).reciprocal(),
-                                        self.functions.values()))
+                                            self.functions.values()))
                     for value in trivial_loss:
                         if value > 1:
                             value.backward(retain_graph=True)
@@ -120,19 +138,19 @@ class Equation:
                 eq_loss.backward()
                 benchmark['Equation Loss'] = eq_loss.item()
 
-                outputs = {name: func().detach().cpu().numpy()
-                           for name, func in self.functions.items()}
-                update_graph(index.numpy(), outputs, cycle, benchmark)
+                choice = indices != -1
+                indices = indices.numpy()[choice]
+                for name, func in self.functions.items():
+                    stat['outputs'][name][indices] = func().detach().cpu().numpy()[choice]
 
                 optimizer.step()
                 optimizer.zero_grad()
                 for func in self.functions.values():
                     func.derivatives.clear()
 
-            if cycle % 500 == 0 or cycle == epoch:
-                print(f'epoch {cycle} | elapsed: {time() - start: .2f} s | loss: {sum(benchmark.values()): .6e} | '
-                      f'memory allocated: {torch.cuda.memory_allocated()}')
-        update_graph.freeze()
+            update_graph(stat['outputs'], stat['epoch'], benchmark)
+
+        training = False
 
     class Function:
         inputs: torch.Tensor
@@ -158,9 +176,9 @@ class Equation:
                                               self.inputs,
                                               grad_outputs=vector,
                                               create_graph=True)
-                # create a record of computed derivatives
+                # create a record of computed derivatives.
                 # presumes that all mixed partials exist and are continuous,
-                # such that all mixed partials of a certain type are equal
+                # such that all mixed partials of a certain type are equal.
                 for i, name in enumerate(self.var_names):
                     for permutation in set(permutations(order[:-1] + name)):
                         self.derivatives[''.join(permutation)] = result[:, i:i + 1]
@@ -181,8 +199,8 @@ if __name__ == '__main__':
     NOTE:
         When editing math expressions in a string, the prefix `torch.` of math functions
         such as `torch.sin(x)` can be omitted for tensor operations. However, this is
-        illegal for operations like `torch.exp(3.14)`. Please specify `np.exp(3.14)` for
-        such plain floating-point calculations.
+        illegal for operations like `torch.exp(3.2)`. Please specify `math.exp(3.2)` or
+        `np.exp(3.2)` for such plain floating-point calculations.
     """
 
     ode1 = Equation('x**2 * u(2) + x * u(1) + (x**2 - 0.25) * u()',
@@ -205,7 +223,7 @@ if __name__ == '__main__':
                                    'cos(t) - sin(t)'))
     ode_system.boundary_condition((0, 1, 'x()'),
                                   (2, cos(2) - sin(2), 'y()'))
-    # ode_system.solve()
+    ode_system.solve()
 
     pde1 = Equation('z() * z(y) + x * z(x) + z(xxx)',
                     {'x': (-2, 2), 'y': (-2, 2)}, 0.1)
@@ -213,4 +231,4 @@ if __name__ == '__main__':
 
     pde2 = Equation('S(tt) - (S(ti)**2 -1) / (S(ii) + S())',
                     {'t': (-5, 5), 'i': (-5, 5)}, 0.1)
-    pde2.solve()
+    # pde2.solve(1000)
