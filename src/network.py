@@ -4,10 +4,10 @@ import torch.optim
 
 
 class Network(nn.Module):
-    def __init__(self, dimension):
+    def __init__(self, dimension: int, hidden_layers: int):
         super().__init__()
         self.layers = nn.ModuleList([nn.Linear(dimension, 60)] +
-                                    [nn.Linear(60, 60)] * 3 +
+                                    [nn.Linear(60, 60)] * hidden_layers +
                                     [nn.Linear(60, 1)])
 
     def forward(self, x):
@@ -17,10 +17,11 @@ class Network(nn.Module):
 
 
 class ReduceLROnDeviation:
-    def __init__(self, optimizer: torch.optim.Optimizer,
+    def __init__(self,
+                 optimizer: torch.optim.Optimizer,
                  factor: float = 0.1,
                  interval: int = 10,
-                 threshold: float = 1.0,
+                 threshold: float = 0.2,
                  delay: int = 0,
                  cooldown: int = 0,
                  min_lr: float = 1e-8,
@@ -37,7 +38,7 @@ class ReduceLROnDeviation:
         self.epoch = -1
         self.device = self.param_groups[0]['params'][0].device
         self.history = torch.tensor([], device=self.device)
-        self.msd = torch.tensor(0.)
+        self.msd = 0
 
     def step(self, loss):
         if self.is_skipped(): return
@@ -47,18 +48,15 @@ class ReduceLROnDeviation:
             history = self.history.clone()
             self.history = torch.tensor([], device=self.device)
             mean_loss = torch.mean(history)
-            self.msd = f.mse_loss(history, mean_loss.expand(self.interval)) / mean_loss ** 2
-            if self.msd < self.threshold: return
-
-            slope_sum = (history[1:] - history[:-1]).sum().item()
-            if slope_sum < -1e-4: return
-
-            for i, group in enumerate(self.param_groups):
-                if (lr := group['lr']) - self.min_lr <= 1e-16: continue
-                group['lr'] = lr * self.factor
-                if self.verbose and self.param_groups[-1] is group:
-                    print(f'Adjusting learning rate from {lr: .1e} to {group["lr"]: .1e}.')
-            self.cooldown_count = self.cooldown
+            self.msd = (f.mse_loss(history, mean_loss.expand(self.interval)) / mean_loss ** 2).item()
+            if self.msd > self.threshold and (history[1:] - history[:-1]).sum() > -1e-4:
+                for i, group in enumerate(self.param_groups):
+                    if (lr := group['lr']) - self.min_lr <= 1e-16: continue
+                    group['lr'] = lr * self.factor
+                    if self.verbose and self.param_groups[-1] is group:
+                        print(f'Adjusting learning rate from {lr: .1e} to {group["lr"]: .1e}.')
+                self.cooldown_count = self.cooldown
+            return self.msd
 
     def is_skipped(self):
         self.epoch += 1

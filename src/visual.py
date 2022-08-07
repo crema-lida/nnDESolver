@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from multiprocessing import Process, Pipe
 
 
@@ -34,9 +35,6 @@ class GraphBase:
         self.outputs = {}
         self.benchmark = {}
 
-    def flush_events(self):
-        self.fig.canvas.flush_events()
-
     class BenchmarkLine:
         def __init__(self, graph, name):
             self.name = name
@@ -50,7 +48,7 @@ class GraphBase:
             graph.refresh_legend()
 
         def update_data(self, epoch, value):
-            if value == 0: return
+            if not value: return
             if epoch == self.data['epoch'][-1]:
                 self.data['value'][-1] = value
             else:
@@ -59,9 +57,12 @@ class GraphBase:
                 ))
             self.line.set_data(self.data['epoch'], self.data['value'])
 
+    def flush(self):
+        self.fig.canvas.flush_events()
+
 
 class Graph2D(GraphBase):
-    def __init__(self, coords: list, *targets):
+    def __init__(self, coords: dict, *targets):
         super().__init__()
         self.ax = self.fig.add_subplot()
         self._ax = self.ax.twinx()  # this controls the y-axis of ax_benchmarks
@@ -70,7 +71,7 @@ class Graph2D(GraphBase):
         for axis in self.animated_axis:
             axis.set(animated=True)
 
-        self.x = coords[0].reshape(-1, 1)
+        self.x = list(coords.values())[0].reshape(-1, 1)
         self.targets = [
             self.ax.plot(self.x, y, '--',
                          color=next(self.colors),
@@ -79,7 +80,7 @@ class Graph2D(GraphBase):
                          animated=True)[0] for i, y in enumerate(targets, 1)
         ]
 
-        self.ax.set(xlabel='X', ylabel='Y', facecolor='black')
+        self.ax.set(xlabel=list(coords)[0], facecolor='black')
         self.ax_benchmarks.set(xlabel='Epoch')
         self._ax.set_ylabel(ylabel='Loss', rotation=-90, labelpad=10)
         plt.tight_layout(rect=(0.03, 0.03, 0.80, 0.8))
@@ -135,18 +136,53 @@ class Graph2D(GraphBase):
         self.bg = self.fig.canvas.copy_from_bbox(self.fig.bbox)
 
 
-class Graph3d(GraphBase):
-    def __init__(self, coords: list, *targets):
+class Surface(GraphBase):
+    def __init__(self, coords: dict, *targets):
         super().__init__()
         self.ax = self.fig.add_subplot(projection='3d')
-        self.shape = tuple(arr.size for arr in coords)
-        self.x, self.y = np.meshgrid(coords[0], coords[1])
-        self.targets = [
-            z.reshape(self.shape).transpose(0, 1) for z in targets
-        ]
+        self.shape = tuple(arr.size for arr in coords.values())
+        self.x, self.y = np.meshgrid(*coords.values(), indexing='ij')
+        self.targets = targets
+        self.surf = None
 
-        self.ax.set(xlabel='X', ylabel='Y', zlabel='z', facecolor='black')
-        plt.tight_layout(rect=(0.05, 0.05, 0.9, 0.8))
+        coords_name = list(coords)
+        self.ax.set(xlabel=coords_name[0], ylabel=coords_name[1], facecolor='black')
+        self.ax.grid(False)
+        for axis in self.ax.xaxis, self.ax.yaxis, self.ax.zaxis:
+            axis.set_pane_color((0.0, 0.0, 0.0, 0.0))
+        plt.tight_layout(rect=(0.05, 0.05, 0.95, 0.8))
+        plt.pause(0.01)
+
+    def update(self, outputs: dict, epoch: int, benchmark: dict):
+        for name, data in outputs.items():
+            if name not in self.outputs:
+                self.outputs[name] = self.OutputSurface(name)
+            self.outputs[name].data = data
+
+        if self.surf:
+            self.surf.remove()
+        for output in self.outputs.values():
+            z = output.data.reshape(self.shape).transpose(0, 1)
+            self.surf = self.ax.plot_surface(self.x, self.y, z,
+                                             rstride=1, cstride=1, cmap='viridis')
+        self.fig.canvas.draw()
+
+    class OutputSurface:
+        def __init__(self, name):
+            self.name = name
+            self.data = None
+
+
+class Contour(GraphBase):
+    def __init__(self, coords: dict, *targets):
+        super().__init__()
+        self.ax = self.fig.add_subplot()
+        self.shape = tuple(arr.size for arr in coords.values())
+        self.x, self.y = np.meshgrid(*coords.values(), indexing='ij')
+        self.targets = targets
+        self.coords_name = list(coords)
+        self.colorbar = None
+        plt.tight_layout(rect=(0.05, 0.05, 0.95, 0.8))
         plt.pause(0.01)
 
     def update(self, outputs: dict, epoch: int, benchmark: dict):
@@ -156,8 +192,13 @@ class Graph3d(GraphBase):
             self.outputs[name].data = data
 
         self.ax.clear()
+        if self.colorbar:
+            self.colorbar.remove()
+        self.ax.set(xlabel=self.coords_name[0], ylabel=self.coords_name[1], facecolor='black')
         for output in self.outputs.values():
-            self.ax.plot_surface(self.x, self.y, output.data.reshape(self.shape).transpose(0, 1))
+            z = output.data.reshape(self.shape).transpose(0, 1)
+            surf = self.ax.contourf(self.x, self.y, z, 100)
+            self.colorbar = self.fig.colorbar(surf)
         self.fig.canvas.draw()
 
     class OutputSurface:
@@ -167,10 +208,11 @@ class Graph3d(GraphBase):
 
 
 class Graph(Process):
-    def __init__(self, coords: list, *targets):
+    def __init__(self, coords: dict, *targets, graph='contour'):
         super().__init__(daemon=True)
         self.coords = coords
         self.targets = targets
+        self.type = graph
         self.pipe_out, self.pipe_in = Pipe(duplex=False)
         self.start()
 
@@ -178,12 +220,19 @@ class Graph(Process):
         dim = len(self.coords)
         if dim == 1:
             graph = Graph2D(self.coords, *self.targets)
+        elif dim == 2:
+            if self.type == 'contour':
+                graph = Contour(self.coords, *self.targets)
+            elif self.type == 'surface':
+                graph = Surface(self.coords, *self.targets)
+            else:
+                raise Exception(f'Unknown graph type {self.type}. `graph` shall either be "contour" or "surface".')
         else:
-            graph = Graph3d(self.coords, *self.targets)
+            raise Exception(f'Cannot visualize data with dimension {dim}.')
         while True:
             if self.pipe_out.poll():
                 graph.update(*self.pipe_out.recv())
-            graph.flush_events()
+            graph.flush()
 
     def __call__(self, *data):
         self.pipe_in.send(data)
