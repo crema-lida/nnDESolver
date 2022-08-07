@@ -2,55 +2,50 @@
 Solve ordinary and partial differential equations with neural networks, based on PyTorch.
 ## Steps to Follow
 **1. Write down your equation.**
-```
-from equation import Equation
 
-ode1 = Equation('x**2 * u(2) + x * u(1) + (x**2 - 0.25) * u()',
-                domain=(0.01, 1), step=0.01,
-                targets='(sin(x) + cos(x)) / sqrt(x)')
+Take Burgers' equation for example:
+$$\frac{\partial u}{\partial t}+u\frac{\partial u}{\partial x}=\frac{0.01}{\pi}\frac{\partial^2 u}{\partial x^2},\ x\in[-1,1],\ t\in[0,1]$$
+The initial condition and Dirichlet boundary conditions read as:
+$$u(0,x)=-\text{sin}(\pi x)$$
+$$u(t,-1)=u(t,1)=0$$
+We move all expressions of the above equations to the left side, so that we can use a lambda expression to describe them as:
 ```
-In the first parameter, "u()" represents the function of variable x. "u(1)" or "u(x)" represents the first-order derivative of "u()", and "u(2)" or "u(xx)" represents the second-order derivative of "u()", etc.
+from solver import Equation
+from from mathfunc import *
 
-The parameter `targets` is optional. If you have a known solution, just specify it and see how close is output to target.
-
-For systems of equations, replace the first parameter with a tuple or list of strings:
+burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
+                                    u(0, x) + sin(pi * x),
+                                    u(t, -1),
+                                    u(t, 1)),
+                   t=(0, 1), x=(-1, 1), step=(0.03, 0.005))
 ```
-ode_system = Equation(('x(t) - y()',
-                       'y(t) + x()'),
-                      domain={'t': (-5, 5)},
-                      targets=('cos(t) + sin(t)',
-                               'cos(t) - sin(t)'))
-```
+The first parameter of class `Equation` receives a function which **returns a tuple**. The function should receive these parameters in sequence: the unknown function `u` and its variables `t, x`. Then, we use kwargs `t=(0, 1), x=(-1, 1)` to specify the domain of function `u`. We can also use `step` to specify the gap between values in each dimension (defaults to 0.01).
 
-**2. Add boundary conditions**
-```
-ode1.boundary_condition((1, np.sin(1) + np.cos(1), 0),
-                        (1, 0.5 * np.cos(1) - 1.5 * np.sin(1), 1))
-```
-Pass a sequence of tuples or lists consist of (position of boundary, value, order).
+- If you hate lambda expressions, you might as well use the `def` keyword to define the function outside and pass it to `Equation`.
+- Remember to actually call `u()` to get its value, because `u` is literally a function.
+- All math functions are from PyTorch. You can choose not to import all from `mathfunc.py`, but to use `torch.sin(x)` instead.
 
-For PDEs, position of boundary is a tuple of numbers.
+**2. Tweak the neural network. (Optional)**
 
+In our case, we use 5 hidden layers in the network and display output data in a 2-D contour plot.
+```
+burgers.config(hidden_layers=5, graph='contour')
+```
 **3. Solve it!**
 ```
-ode1.solve()
+burgers.solve()
 ```
 Run your code and see how things evolve.
 
-![图片](https://user-images.githubusercontent.com/100750226/179616883-f9885d66-e6dd-4af1-9f20-45751d3c30a5.png)
+![截图 2022-08-07 18-04-06](https://user-images.githubusercontent.com/100750226/183294657-1560b089-23b9-45e0-94d7-94a9c3f0fb99.png)
 
-BTW, you can specify some parameters like:
-```
-ode1.solve(epoch=20000, lr=0.002, trivial_resist=True)
-```
-Specify `trivial_resist=True` if you don't want to see trivial solutions such as `y = 0`. However, this is not recommended for most cases.
+## Showcases
+- The KdV equation
 
-An example for solving PDEs:
-```
-pde1 = Equation('y * z(x) + x * z(y)',
-                {'x': (-2, 2), 'y': (-2, 2)})
-pde1.solve()
-```
-![图片](https://user-images.githubusercontent.com/100750226/179619033-470dc1a0-efb6-4aba-891e-9f1a711f16e2.png)
+![截图 2022-08-07 19-04-31](https://user-images.githubusercontent.com/100750226/183295413-88133b58-323c-4869-92b8-a1b6fc1b3426.png)
 
-More examples are available in the end of file `equation.py`. Good luck!
+- A system of ODEs
+
+![截图 2022-08-07 19-38-11](https://user-images.githubusercontent.com/100750226/183295595-a268481d-c86d-4d67-a014-ef281ce70ad5.png)
+
+All code examples are available in the end of file `solver.py`. Good luck!
