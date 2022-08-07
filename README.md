@@ -17,7 +17,8 @@ burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
                                     u(0, x) + sin(pi * x),
                                     u(t, -1),
                                     u(t, 1)),
-                   t=(0, 1), x=(-1, 1), step=(0.03, 0.005))
+                   t=(0, 1), x=(-1, 1),
+                   step=(0.03, 0.005))
 ```
 The first parameter of class `Equation` receives a function which **returns a tuple**. The function should receive these parameters in sequence: the unknown function `u` and its variables `t, x`. Then, we use kwargs `t=(0, 1), x=(-1, 1)` to specify the domain of function `u`. We can also use `step` to specify the gap between values in each dimension (defaults to 0.01).
 
