@@ -1,5 +1,5 @@
 # nnDESolver
-Solve ordinary and partial differential equations with neural networks, based on PyTorch.
+Solve ordinary and partial differential equations with neural networks, implemented with PyTorch.
 ## Steps to Follow
 **1. Write down your equation.**
 
