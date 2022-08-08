@@ -6,9 +6,9 @@ import torch.optim
 class Network(nn.Module):
     def __init__(self, dimension: int, hidden_layers: int):
         super().__init__()
-        self.layers = nn.ModuleList([nn.Linear(dimension, 60)] +
-                                    [nn.Linear(60, 60)] * hidden_layers +
-                                    [nn.Linear(60, 1)])
+        self.layers = nn.ModuleList([nn.Linear(dimension, 30)] +
+                                    [nn.Linear(30, 30)] * hidden_layers +
+                                    [nn.Linear(30, 1)])
 
     def forward(self, x):
         for layer in self.layers[:-1]:

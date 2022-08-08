@@ -57,7 +57,7 @@ class Equation:
             start = time()
             max_step = math.ceil(sample_size / batch_size)
             while training:
-                sleep(0.1)
+                sleep(0.2)
                 print(f'epoch {stat["epoch"]}/{epoch} | step {stat["step"]}/{max_step} | '
                       f'elapsed: {time() - start: .2f} s | loss: {benchmark["Loss"]: .6e}\r', end='')
 
@@ -141,6 +141,8 @@ class Equation:
             self.hidden_layers = kwargs['hidden_layers']
         if 'graph' in kwargs:
             self.graph = kwargs['graph']
+        if 'device' in kwargs:
+            self.device = torch.device(kwargs['device'])
 
 
 if __name__ == '__main__':
@@ -159,7 +161,7 @@ if __name__ == '__main__':
                           t=(-5, 5),
                           exact_soln=lambda t: (cos(t) + sin(t),
                                                 cos(t) - sin(t)))
-    ode_system.solve(lr=0.01)
+    # ode_system.solve(lr=0.01)
 
     burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
                                         u(0, x) + sin(pi * x),
@@ -167,7 +169,7 @@ if __name__ == '__main__':
                                         u(t, 1)),
                        t=(0, 1), x=(-1, 1), step=(0.03, 0.005))
     burgers.config(hidden_layers=5, graph='contour')
-    # burgers.solve()
+    burgers.solve()
 
     kdv = Equation(lambda u, t, x: (u('t') + u() * u('x') + u('xxx'),
                                     u(0, x) - 2 * cosh(x) ** (-2)),
