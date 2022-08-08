@@ -11,7 +11,7 @@ $$u(t,-1)=u(t,1)=0$$
 We move all expressions of the above equations to the left side, so that we can use a lambda expression to describe them as:
 ```
 from solver import Equation
-from from mathfunc import *
+from mathfunc import *
 
 burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
                                     u(0, x) + sin(pi * x),
