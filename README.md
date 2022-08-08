@@ -1,5 +1,5 @@
 # nnDESolver
-Solve ordinary and partial differential equations with neural networks, based on PyTorch.
+Solve ordinary and partial differential equations with neural networks, implemented with PyTorch.
 ## Steps to Follow
 **1. Write down your equation.**
 
@@ -11,7 +11,7 @@ $$u(t,-1)=u(t,1)=0$$
 We move all expressions of the above equations to the left side, so that we can use a lambda expression to describe them as:
 ```
 from solver import Equation
-from from mathfunc import *
+from mathfunc import *
 
 burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
                                     u(0, x) + sin(pi * x),
@@ -20,9 +20,9 @@ burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
                    t=(0, 1), x=(-1, 1),
                    step=(0.03, 0.005))
 ```
-The first parameter of class `Equation` receives a function which **returns a tuple**. The function should receive these parameters in sequence: the unknown function `u` and its variables `t, x`. Then, we use kwargs `t=(0, 1), x=(-1, 1)` to specify the domain of function `u`. We can also use `step` to specify the gap between values in each dimension (defaults to 0.01).
+The first parameter of class `Equation` receives a callable which **returns a tuple**. The callable should receive these parameters in sequence: the unknown function `u` and its variables `t, x`. Then, we use kwargs `t=(0, 1), x=(-1, 1)` to specify the domain of function `u`. We can also use `step` to specify the gap between values in each dimension (defaults to 0.01).
 
-- If you hate lambda expressions, you might as well use the `def` keyword to define the function outside and pass it to `Equation`.
+- If you hate lambda expressions, you might as well use the `def` keyword to define the callable outside and pass it to `Equation`.
 - Remember to actually call `u()` to get its value, because `u` is literally a function.
 - All math functions are from PyTorch. You can choose not to import all from `mathfunc.py`, but to use `torch.sin(x)` instead.
 
