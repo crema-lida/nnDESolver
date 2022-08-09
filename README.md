@@ -20,7 +20,7 @@ burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
                    t=(0, 1), x=(-1, 1),
                    step=(0.03, 0.005))
 ```
-The first parameter of class `Equation` receives a callable which **returns a tuple**. The callable should receive these parameters in sequence: the unknown function `u` and its variables `t, x`. Then, we use kwargs `t=(0, 1), x=(-1, 1)` to specify the domain of function `u`. We can also use `step` to specify the gap between values in each dimension (defaults to 0.01).
+The first parameter of `Equation` receives a callable which **returns a tuple**. The callable should receive these parameters in sequence: the unknown function `u` and its variables `t, x`. Then, we use kwargs `t=(0, 1), x=(-1, 1)` to specify the domain of function `u`. We can also use `step` to specify the gap between values in each dimension (defaults to 0.01).
 
 - If you hate lambda expressions, you might as well use the `def` keyword to define the callable outside and pass it to `Equation`.
 - Remember to actually call `u()` to get its value, because `u` is literally a function.
