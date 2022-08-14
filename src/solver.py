@@ -26,11 +26,12 @@ class Equation:
         self.equations = equations
         self.device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
         self.exact_soln = exact_soln
+        self.neurons = 10
         self.hidden_layers = 3
         self.graph = 'contour'
         self.init_config = None
 
-    def solve(self, epoch: int = 10000, lr: float = 0.001):
+    def solve(self, epoch: int = 5000, lr: float = 0.01):
         sample_size = self.inputs.shape[0]
         dataset = TensorDataset(torch.from_numpy(self.indices), torch.from_numpy(self.inputs))
         batch_size = min(max(256, pow(2, int(np.log2(sample_size / 10)))), 131072)
@@ -42,7 +43,7 @@ class Equation:
         )
 
         for name in self.functions.keys():
-            self.functions[name] = self.Function(name, self.var_names, self.device, self.hidden_layers)
+            self.functions[name] = self.Function(name, self.var_names, self.device, self.neurons, self.hidden_layers)
         optimizer = torch.optim.Adam([{'params': func.net.parameters()} for func in self.functions.values()], lr=lr)
         scheduler = ReduceLROnDeviation(optimizer)
         benchmark = {'Loss': 0}
@@ -101,13 +102,13 @@ class Equation:
     class Function:
         inputs: torch.Tensor
 
-        def __init__(self, name, var_names, device, hidden_layers):
+        def __init__(self, name, var_names, device, neurons, hidden_layers):
             self.name = name
             self.var_names = var_names
             self.device = device
             self.derivatives = {}
             self.vector = torch.ones(1, 1, device=device)
-            self.net = Network(len(var_names), hidden_layers).to(device)
+            self.net = Network(len(var_names), neurons, hidden_layers).to(device)
 
         def __call__(self, *args, inputs=None) -> torch.Tensor:
             order, position = parse_inputs(args)
@@ -137,6 +138,8 @@ class Equation:
             return self.derivatives[inp][order]
 
     def config(self, **kwargs):  # TODO initial configuration
+        if 'neurons' in kwargs:
+            self.neurons = kwargs['neurons']
         if 'hidden_layers' in kwargs:
             self.hidden_layers = kwargs['hidden_layers']
         if 'graph' in kwargs:
@@ -149,10 +152,11 @@ if __name__ == '__main__':
     from mathfunc import *
 
     ode1 = Equation(lambda u, x: (u() * exp(x * u()) + cos(x) + x * exp(x * u()) * u('x'),
-                                  u('', pi / 2)),
-                    x=(0.5, 5), step=0.001,
+                                  u(pi / 2)),
+                    x=(0.5, 5), step=0.01,
                     exact_soln=lambda x: ln(2 - sin(x)) / x)
-    # ode1.solve(epoch=1000)
+    ode1.config(hidden_layers=1)
+    # ode1.solve(lr=0.005)
 
     ode_system = Equation(lambda x, y, t: (x('t') - y(),
                                            y('t') + x(),
@@ -161,18 +165,19 @@ if __name__ == '__main__':
                           t=(-5, 5),
                           exact_soln=lambda t: (cos(t) + sin(t),
                                                 cos(t) - sin(t)))
-    # ode_system.solve(lr=0.01)
+    ode_system.config(hidden_layers=1)
+    # ode_system.solve()
 
     burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
                                         u(0, x) + sin(pi * x),
                                         u(t, -1),
                                         u(t, 1)),
-                       t=(0, 1), x=(-1, 1), step=(0.03, 0.005))
-    burgers.config(hidden_layers=5, graph='contour')
+                       t=(0, 1), x=(-1, 1), step=(0.05, 0.005))
+    burgers.config(graph='contour')
     burgers.solve()
 
     kdv = Equation(lambda u, t, x: (u('t') + u() * u('x') + u('xxx'),
                                     u(0, x) - 2 * cosh(x) ** (-2)),
-                   t=(-10, 10), x=(-10, 10), step=0.1)
-    kdv.config(hidden_layers=5, graph='surface')
+                   t=(-5, 5), x=(-5, 5), step=0.1)
+    kdv.config(graph='surface')
     # kdv.solve()
