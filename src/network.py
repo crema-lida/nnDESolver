@@ -54,7 +54,7 @@ class ReduceLROnDeviation:
                     if (lr := group['lr']) - self.min_lr <= 1e-16: continue
                     group['lr'] = lr * self.factor
                     if self.verbose and self.param_groups[-1] is group:
-                        print(f'Adjusting learning rate from {lr: .1e} to {group["lr"]: .1e}.')
+                        print(f'\nAdjusting learning rate from {lr: .1e} to {group["lr"]: .1e}.')
                 self.cooldown_count = self.cooldown
             return self.msd
 

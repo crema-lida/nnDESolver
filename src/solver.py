@@ -57,10 +57,10 @@ class Equation:
         def refresh_status(stat):
             start = time()
             max_step = math.ceil(sample_size / batch_size)
-            while training:
-                sleep(0.2)
-                print(f'epoch {stat["epoch"]}/{epoch} | step {stat["step"]}/{max_step} | '
-                      f'elapsed: {time() - start: .2f} s | loss: {benchmark["Loss"]: .6e}\r', end='')
+            while True:
+                sleep(0.3)
+                print(f'\repoch {stat["epoch"]}/{epoch} | step {stat["step"]}/{max_step} | '
+                      f'elapsed: {time() - start: .2f} s | loss: {benchmark["Loss"]: .6e}', end='')
 
         print(f'computing device: {self.device}\n'
               f'sample size: {sample_size} | batch size: {batch_size}')
@@ -68,7 +68,6 @@ class Equation:
                 'outputs': {name: np.full((self.indices[self.indices != -1].size, 1), np.nan)
                             for name in self.functions.keys()}}
         updater = Thread(target=refresh_status, args=(stat,), daemon=True)
-        training = True
         updater.start()
 
         for cycle in range(1, epoch + 1):
@@ -96,8 +95,6 @@ class Equation:
                     func.derivatives.clear()
 
             update_graph(stat['outputs'], stat['epoch'], benchmark)
-
-        training = False
 
     class Function:
         inputs: torch.Tensor
