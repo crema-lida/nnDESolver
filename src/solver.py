@@ -31,7 +31,7 @@ class Equation:
         self.graph = 'contour'
         self.init_config = None
 
-    def solve(self, epoch: int = 5000, lr: float = 0.01):
+    def solve(self, epoch: int = 5000, lr: float = 2e-3):
         sample_size = self.inputs.shape[0]
         dataset = TensorDataset(torch.from_numpy(self.indices), torch.from_numpy(self.inputs))
         batch_size = min(max(256, pow(2, int(np.log2(sample_size / 10)))), 131072)
@@ -44,7 +44,7 @@ class Equation:
 
         for name in self.functions.keys():
             self.functions[name] = self.Function(name, self.var_names, self.device, self.neurons, self.hidden_layers)
-        optimizer = torch.optim.Adam([{'params': func.net.parameters()} for func in self.functions.values()], lr=lr)
+        optimizer = torch.optim.NAdam([{'params': func.net.parameters()} for func in self.functions.values()], lr=lr)
         scheduler = ReduceLROnDeviation(optimizer)
         benchmark = {'Loss': 0}
         zero = torch.zeros(1, 1, device=self.device)
@@ -171,10 +171,35 @@ if __name__ == '__main__':
                                         u(t, 1)),
                        t=(0, 1), x=(-1, 1), step=(0.05, 0.005))
     burgers.config(graph='contour')
-    burgers.solve()
+    # burgers.solve()
 
     kdv = Equation(lambda u, t, x: (u('t') + u() * u('x') + u('xxx'),
                                     u(0, x) - 2 * cosh(x) ** (-2)),
                    t=(-5, 5), x=(-5, 5), step=0.1)
     kdv.config(graph='surface')
     # kdv.solve()
+
+    T_0 = 100
+    T_f = 25
+    L = 0.1
+    B = 0.05
+    h = 18
+    k = 0.0258
+    Gamma = math.sqrt(h / (k * B))
+    heat_transfer = Equation(lambda T, x: (T('xx') - Gamma ** 2 * (T() - T_f),
+                                           T(0) - T_0,
+                                           T('x', L)),
+                             x=(0, L), step=0.001,
+                             exact_soln=lambda x: T_f + (T_0 - T_f) * (
+                                     cosh(Gamma * x) - tanh(Gamma * x) * sinh(Gamma * x)
+                             ))
+    # heat_transfer.solve()
+
+    heat_transfer2d = Equation(lambda T, x, z: (T('xx') + T('zz'),
+                                                T('z', x, 0) + h / k * (T() - T_f),
+                                                T('z', x, 2 * B) + h / k * (T() - T_f),
+                                                T('z', x, B),
+                                                T(0, z) - T_0,
+                                                T('x', L, z)),
+                               x=(0, L), z=(0, 2 * B), step=0.001)
+    heat_transfer2d.solve()

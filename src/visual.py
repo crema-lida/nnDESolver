@@ -197,7 +197,7 @@ class Contour(GraphBase):
         self.ax.set(xlabel=self.coords_name[0], ylabel=self.coords_name[1], facecolor='black')
         for output in self.outputs.values():
             z = output.data.reshape(self.shape).transpose(0, 1)
-            surf = self.ax.contourf(self.x, self.y, z, 100)
+            surf = self.ax.contourf(self.x, self.y, z, 100, cmap='jet')
             self.colorbar = self.fig.colorbar(surf)
         self.fig.canvas.draw()
 
