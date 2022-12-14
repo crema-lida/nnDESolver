@@ -49,4 +49,4 @@ Run your code and see how things evolve.
 
 ![截图 2022-08-07 19-38-11](https://user-images.githubusercontent.com/100750226/183295595-a268481d-c86d-4d67-a014-ef281ce70ad5.png)
 
-All code examples are available in the end of file `solver.py`. Good luck!
+All code examples are available in `examples.py`. Good luck!
