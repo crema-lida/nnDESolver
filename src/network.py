@@ -4,16 +4,29 @@ import torch.optim
 
 
 class Network(nn.Module):
-    def __init__(self, dimension: int, neurons: int, hidden_layers: int):
+    def __init__(self, dimension: int, features: int, hidden_layers: int):
         super().__init__()
-        self.layers = nn.ModuleList([nn.Linear(dimension, neurons)] +
-                                    [nn.Linear(neurons, neurons)] * hidden_layers +
-                                    [nn.Linear(neurons, 1)])
+        self.linear_in = nn.Sequential(
+            nn.Linear(dimension, features),
+            nn.CELU(),
+        )
+        self.linears = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(features, features),
+                    nn.CELU(),
+                ) for _ in range(hidden_layers)
+            ]
+        )
+        self.linear_out = nn.Sequential(
+            nn.Linear(features, 1),
+        )
 
     def forward(self, x):
-        for layer in self.layers[:-1]:
-            x = f.softplus(layer(x))
-        return self.layers[-1](x)
+        x = self.linear_in(x)
+        for linear in self.linears:
+            x = linear(x)
+        return self.linear_out(x)
 
 
 class ReduceLROnDeviation:

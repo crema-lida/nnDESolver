@@ -137,13 +137,13 @@ class Graph2D(GraphBase):
 
 
 class Surface(GraphBase):
-    def __init__(self, coords: dict, *targets):
+    def __init__(self, coords: dict, cmap='viridis'):
         super().__init__()
         self.ax = self.fig.add_subplot(projection='3d')
         self.shape = tuple(arr.size for arr in coords.values())
         self.x, self.y = np.meshgrid(*coords.values(), indexing='ij')
-        self.targets = targets
         self.surf = None
+        self.cmap = cmap
 
         coords_name = list(coords)
         self.ax.set(xlabel=coords_name[0], ylabel=coords_name[1], facecolor='black')
@@ -164,7 +164,7 @@ class Surface(GraphBase):
         for output in self.outputs.values():
             z = output.data.reshape(self.shape).transpose(0, 1)
             self.surf = self.ax.plot_surface(self.x, self.y, z,
-                                             rstride=1, cstride=1, cmap='viridis')
+                                             rstride=1, cstride=1, cmap=self.cmap)
         self.fig.canvas.draw()
 
     class OutputSurface:
@@ -174,14 +174,14 @@ class Surface(GraphBase):
 
 
 class Contour(GraphBase):
-    def __init__(self, coords: dict, *targets):
+    def __init__(self, coords: dict, cmap='viridis'):
         super().__init__()
         self.ax = self.fig.add_subplot()
         self.shape = tuple(arr.size for arr in coords.values())
         self.x, self.y = np.meshgrid(*coords.values(), indexing='ij')
-        self.targets = targets
         self.coords_name = list(coords)
         self.colorbar = None
+        self.cmap = cmap
         plt.tight_layout(rect=(0.05, 0.05, 0.95, 0.8))
         plt.pause(0.01)
 
@@ -197,7 +197,7 @@ class Contour(GraphBase):
         self.ax.set(xlabel=self.coords_name[0], ylabel=self.coords_name[1], facecolor='black')
         for output in self.outputs.values():
             z = output.data.reshape(self.shape).transpose(0, 1)
-            surf = self.ax.contourf(self.x, self.y, z, 100, cmap='jet')
+            surf = self.ax.contourf(self.x, self.y, z, 100, cmap=self.cmap)
             self.colorbar = self.fig.colorbar(surf)
         self.fig.canvas.draw()
 
@@ -208,11 +208,12 @@ class Contour(GraphBase):
 
 
 class Graph(Process):
-    def __init__(self, coords: dict, *targets, graph='contour'):
+    def __init__(self, coords: dict, *targets, graph='contour', cmap='viridis'):
         super().__init__(daemon=True)
         self.coords = coords
         self.targets = targets
         self.type = graph
+        self.cmap = cmap
         self.pipe_out, self.pipe_in = Pipe(duplex=False)
         self.start()
 
@@ -222,9 +223,9 @@ class Graph(Process):
             graph = Graph2D(self.coords, *self.targets)
         elif dim == 2:
             if self.type == 'contour':
-                graph = Contour(self.coords, *self.targets)
+                graph = Contour(self.coords, self.cmap)
             elif self.type == 'surface':
-                graph = Surface(self.coords, *self.targets)
+                graph = Surface(self.coords, self.cmap)
             else:
                 raise Exception(f'Unknown graph type {self.type}. `graph` shall either be "contour" or "surface".')
         else:

@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as f
 from torch.utils.data import TensorDataset, DataLoader
+from torch.nn.utils import clip_grad_norm_
 import numpy as np
 import math
 from time import time, sleep
@@ -26,12 +27,13 @@ class Equation:
         self.equations = equations
         self.device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
         self.exact_soln = exact_soln
-        self.neurons = 10
-        self.hidden_layers = 3
+        self.features = 10
+        self.hidden_layers = 5
         self.graph = 'contour'
+        self.cmap = 'viridis'
         self.init_config = None
 
-    def solve(self, epoch: int = 5000, lr: float = 2e-3):
+    def solve(self, epoch: int = 5000, lr: float = 1e-3):
         sample_size = self.inputs.shape[0]
         dataset = TensorDataset(torch.from_numpy(self.indices), torch.from_numpy(self.inputs))
         batch_size = min(max(256, pow(2, int(np.log2(sample_size / 10)))), 131072)
@@ -43,8 +45,8 @@ class Equation:
         )
 
         for name in self.functions.keys():
-            self.functions[name] = self.Function(name, self.var_names, self.device, self.neurons, self.hidden_layers)
-        optimizer = torch.optim.NAdam([{'params': func.net.parameters()} for func in self.functions.values()], lr=lr)
+            self.functions[name] = self.Function(name, self.var_names, self.device, self.features, self.hidden_layers)
+        optimizer = torch.optim.Adam([{'params': func.net.parameters()} for func in self.functions.values()], lr=lr)
         scheduler = ReduceLROnDeviation(optimizer)
         benchmark = {'Loss': 0}
         zero = torch.zeros(1, 1, device=self.device)
@@ -52,7 +54,7 @@ class Equation:
         solns = self.exact_soln(*map(lambda arr: torch.from_numpy(arr),
                                      np.meshgrid(*self.ds_coords.values()))) if self.exact_soln else ()
         solns = solns if type(solns) is tuple else (solns,)
-        update_graph = Graph(self.ds_coords, *map(lambda arr: arr.numpy(), solns), graph=self.graph)
+        update_graph = Graph(self.ds_coords, *map(lambda arr: arr.numpy(), solns), graph=self.graph, cmap=self.cmap)
 
         def refresh_status(stat):
             start = time()
@@ -81,6 +83,8 @@ class Equation:
                                            *map(lambda i: self.Function.inputs[..., i: i + 1], range_vars))
                 loss = sum(map(lambda output: f.mse_loss(output, zero.expand(output.size(0), -1)), equations))
                 loss.backward()
+                for group in optimizer.param_groups:
+                    clip_grad_norm_(group['params'], max_norm=0.5, error_if_nonfinite=True)
 
                 choice = indices != -1
                 indices = indices.numpy()[choice]
@@ -99,15 +103,20 @@ class Equation:
     class Function:
         inputs: torch.Tensor
 
-        def __init__(self, name, var_names, device, neurons, hidden_layers):
+        def __init__(self, name, var_names, device, features, hidden_layers):
             self.name = name
             self.var_names = var_names
             self.device = device
             self.derivatives = {}
             self.vector = torch.ones(1, 1, device=device)
-            self.net = Network(len(var_names), neurons, hidden_layers).to(device)
+            self.net = Network(len(var_names), features, hidden_layers).to(device)
 
         def __call__(self, *args, inputs=None) -> torch.Tensor:
+            """
+            Args:
+                order (Optional): str. Order of the derivative.
+                position (Optional): number, Tensor. Where to apply the boundary condition.
+            """
             order, position = parse_inputs(args)
             if position:
                 inputs = get_bdy_pos(position, self.device)
@@ -126,80 +135,22 @@ class Equation:
                                               inputs,
                                               grad_outputs=vector,
                                               create_graph=True)
-                # create a record of computed derivatives.
+                # save computed derivatives.
                 # presumes that all mixed partials exist and are continuous,
                 # such that all mixed partials of a certain type are equal.
                 for i, name in enumerate(self.var_names):
-                    for permutation in set(permutations(order[:-1] + name)):
-                        self.derivatives[inp][''.join(permutation)] = result[:, i:i + 1]
+                    for permut in set(permutations(order[:-1] + name)):
+                        self.derivatives[inp][''.join(permut)] = result[:, i:i + 1]
             return self.derivatives[inp][order]
 
     def config(self, **kwargs):  # TODO initial configuration
-        if 'neurons' in kwargs:
-            self.neurons = kwargs['neurons']
+        if 'features' in kwargs:
+            self.features = kwargs['features']
         if 'hidden_layers' in kwargs:
             self.hidden_layers = kwargs['hidden_layers']
         if 'graph' in kwargs:
             self.graph = kwargs['graph']
+        if 'cmap' in kwargs:
+            self.cmap = kwargs['cmap']
         if 'device' in kwargs:
             self.device = torch.device(kwargs['device'])
-
-
-if __name__ == '__main__':
-    from mathfunc import *
-
-    ode1 = Equation(lambda u, x: (u() * exp(x * u()) + cos(x) + x * exp(x * u()) * u('x'),
-                                  u(pi / 2)),
-                    x=(0.5, 5), step=0.01,
-                    exact_soln=lambda x: ln(2 - sin(x)) / x)
-    ode1.config(hidden_layers=1)
-    # ode1.solve(lr=0.005)
-
-    ode_system = Equation(lambda x, y, t: (x('t') - y(),
-                                           y('t') + x(),
-                                           x(0) - 1,
-                                           y(2) - math.cos(2) + math.sin(2)),
-                          t=(-5, 5),
-                          exact_soln=lambda t: (cos(t) + sin(t),
-                                                cos(t) - sin(t)))
-    ode_system.config(hidden_layers=1)
-    # ode_system.solve()
-
-    burgers = Equation(lambda u, t, x: (u('t') + u() * u('x') - 0.01 / pi * u('xx'),
-                                        u(0, x) + sin(pi * x),
-                                        u(t, -1),
-                                        u(t, 1)),
-                       t=(0, 1), x=(-1, 1), step=(0.05, 0.005))
-    burgers.config(graph='contour')
-    # burgers.solve()
-
-    kdv = Equation(lambda u, t, x: (u('t') + u() * u('x') + u('xxx'),
-                                    u(0, x) - 2 * cosh(x) ** (-2)),
-                   t=(-5, 5), x=(-5, 5), step=0.1)
-    kdv.config(graph='surface')
-    # kdv.solve()
-
-    T_0 = 100
-    T_f = 25
-    L = 0.1
-    B = 0.05
-    h = 18
-    k = 0.0258
-    Gamma = math.sqrt(h / (k * B))
-    heat_transfer = Equation(lambda T, x: (T('xx') - Gamma ** 2 * (T() - T_f),
-                                           T(0) - T_0,
-                                           T('x', L)),
-                             x=(0, L), step=0.001,
-                             exact_soln=lambda x: T_f + (T_0 - T_f) * (
-                                     cosh(Gamma * x) - tanh(Gamma * x) * sinh(Gamma * x)
-                             ))
-    # heat_transfer.solve()
-
-    heat_transfer2d = Equation(lambda T, x, z: (T('xx') + T('zz'),
-                                                T('z', x, 0) + h / k * (T() - T_f),
-                                                T('z', x, 2 * B) + h / k * (T() - T_f),
-                                                T('z', x, B),
-                                                T(0, z) - T_0,
-                                                T('x', L, z)),
-                               x=(0, L), z=(0, 2 * B), step=0.001)
-    heat_transfer2d.solve()
